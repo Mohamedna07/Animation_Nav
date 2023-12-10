@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script
+    type="text/javascript"
+    src="js/jquery.min.js"
+    id="jquery-core-js"
+  ></script>
+  <script
+    type="text/javascript"
+    src="js/jquery-migrate.min.js"
+    id="jquery-migrate-js"
+  ></script>
+  <style>
+    .no-js img.lazyload {
+      display: none;
+    }
+    figure.wp-block-image img.lazyloading {
+      min-width: 150px;
+    }
+    .lazyload,
+    .lazyloading {
+      opacity: 0;
+    }
+    .lazyloaded {
+      opacity: 1;
+      transition: opacity 400ms;
+      transition-delay: 0ms;
+    }
+  </style>
+    <script src="js/jquery-3.4.1.min.js" crossorigin="anonymous"></script>
+    <script src="js/wp-emoji-release.min.js" defer=""></script>
+</head>
+<script>
+    var canvas = document.getElementById("nokey"),
+      can_w = parseInt(canvas.getAttribute("width")),
+      can_h = parseInt(canvas.getAttribute("height")),
+      ctx = canvas.getContext("2d");
+
+    // console.log(typeof can_w);
+
+    var ball = {
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        r: 0,
+        alpha: 1,
+        phase: 0,
+      },
+      ball_color = {
+        r: 250,
+        g: 188,
+        b: 9,
+      },
+      R = 2,
+      balls = [],
+      alpha_f = 0.03,
+      alpha_phase = 0,
+      // Line
+      link_line_width = 0.8,
+      dis_limit = 260,
+      add_mouse_point = true,
+      mouse_in = false,
+      mouse_ball = {
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        r: 0,
+        type: "mouse",
+      };
+
+    // Random speed
+    function getRandomSpeed(pos) {
+      var min = -1,
+        max = 1;
+      switch (pos) {
+        case "top":
+          return [randomNumFrom(min, max), randomNumFrom(0.1, max)];
+          break;
+        case "right":
+          return [randomNumFrom(min, -0.1), randomNumFrom(min, max)];
+          break;
+        case "bottom":
+          return [randomNumFrom(min, max), randomNumFrom(min, -0.1)];
+          break;
+        case "left":
+          return [randomNumFrom(0.1, max), randomNumFrom(min, max)];
+          break;
+        default:
+          return;
+          break;
+      }
+    }
+    function randomArrayItem(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+    function randomNumFrom(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+    console.log(randomNumFrom(0, 10));
+    // Random Ball
+    function getRandomBall() {
+      var pos = randomArrayItem(["top", "right", "bottom", "left"]);
+      switch (pos) {
+        case "top":
+          return {
+            x: randomSidePos(can_w),
+            y: -R,
+            vx: getRandomSpeed("top")[0],
+            vy: getRandomSpeed("top")[1],
+            r: R,
+            alpha: 1,
+            phase: randomNumFrom(0, 10),
+          };
+          break;
+        case "right":
+          return {
+            x: can_w + R,
+            y: randomSidePos(can_h),
+            vx: getRandomSpeed("right")[0],
+            vy: getRandomSpeed("right")[1],
+            r: R,
+            alpha: 1,
+            phase: randomNumFrom(0, 10),
+          };
+          break;
+        case "bottom":
+          return {
+            x: randomSidePos(can_w),
+            y: can_h + R,
+            vx: getRandomSpeed("bottom")[0],
+            vy: getRandomSpeed("bottom")[1],
+            r: R,
+            alpha: 1,
+            phase: randomNumFrom(0, 10),
+          };
+          break;
+        case "left":
+          return {
+            x: -R,
+            y: randomSidePos(can_h),
+            vx: getRandomSpeed("left")[0],
+            vy: getRandomSpeed("left")[1],
+            r: R,
+            alpha: 1,
+            phase: randomNumFrom(0, 10),
+          };
+          break;
+      }
+    }
+    function randomSidePos(length) {
+      return Math.ceil(Math.random() * length);
+    }
+
+    // Draw Ball
+    function renderBalls() {
+      Array.prototype.forEach.call(balls, function (b) {
+        if (!b.hasOwnProperty("type")) {
+          ctx.fillStyle =
+            "rgba(" +
+            ball_color.r +
+            "," +
+            ball_color.g +
+            "," +
+            ball_color.b +
+            "," +
+            b.alpha +
+            ")";
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, R, 0, Math.PI * 2, true);
+          ctx.closePath();
+          ctx.fill();
+        }
+      });
+    }
+
+    // Update balls
+    function updateBalls() {
+      var new_balls = [];
+      Array.prototype.forEach.call(balls, function (b) {
+        b.x += b.vx;
+        b.y += b.vy;
+
+        if (
+          b.x > -50 &&
+          b.x < can_w + 50 &&
+          b.y > -50 &&
+          b.y < can_h + 50
+        ) {
+          new_balls.push(b);
+        }
+
+        // alpha change
+        b.phase += alpha_f;
+        b.alpha = Math.abs(Math.cos(b.phase));
+        // console.log(b.alpha);
+      });
+
+      balls = new_balls.slice(0);
+    }
+
+    // loop alpha
+    function loopAlphaInf() {}
+
+    // Draw lines
+    function renderLines() {
+      var fraction, alpha;
+      for (var i = 0; i < balls.length; i++) {
+        for (var j = i + 1; j < balls.length; j++) {
+          fraction = getDisOf(balls[i], balls[j]) / dis_limit;
+
+          if (fraction < 1) {
+            alpha = (1 - fraction).toString();
+
+            ctx.strokeStyle = "rgba(250,188,9," + alpha + ")";
+            ctx.lineWidth = link_line_width;
+
+            ctx.beginPath();
+            ctx.moveTo(balls[i].x, balls[i].y);
+            ctx.lineTo(balls[j].x, balls[j].y);
+            ctx.stroke();
+            ctx.closePath();
+          }
+        }
+      }
+    }
+
+    // calculate distance between two points
+    function getDisOf(b1, b2) {
+      var delta_x = Math.abs(b1.x - b2.x),
+        delta_y = Math.abs(b1.y - b2.y);
+
+      return Math.sqrt(delta_x * delta_x + delta_y * delta_y);
+    }
+
+    // add balls if there a little balls
+    function addBallIfy() {
+      if (balls.length < 30) {
+        balls.push(getRandomBall());
+      }
+    }
+
+    // Render
+    function render() {
+      ctx.clearRect(0, 0, can_w, can_h);
+
+      renderBalls();
+
+      renderLines();
+
+      updateBalls();
+
+      addBallIfy();
+
+      window.requestAnimationFrame(render);
+    }
+
+    // Init Balls
+    function initBalls(num) {
+      for (var i = 1; i <= num; i++) {
+        balls.push({
+          x: randomSidePos(can_w),
+          y: randomSidePos(can_h),
+          vx: getRandomSpeed("top")[0],
+          vy: getRandomSpeed("top")[1],
+          r: R,
+          alpha: 1,
+          phase: randomNumFrom(0, 10),
+        });
+      }
+    }
+    // Init Canvas
+    function initCanvas() {
+      canvas.setAttribute("width", window.innerWidth);
+      canvas.setAttribute("height", "800px");
+
+      can_w = parseInt(canvas.getAttribute("width"));
+      can_h = parseInt(canvas.getAttribute("height"));
+    }
+    window.addEventListener("resize", function (e) {
+      console.log("Window Resize...");
+      initCanvas();
+    });
+
+    function goMovie() {
+      initCanvas();
+      initBalls(60);
+      window.requestAnimationFrame(render);
+    }
+    goMovie();
+
+    // Mouse effect
+    canvas.addEventListener("mouseenter", function () {
+      console.log("mouseenter");
+      mouse_in = true;
+      balls.push(mouse_ball);
+    });
+    canvas.addEventListener("mouseleave", function () {
+      console.log("mouseleave");
+      mouse_in = false;
+      var new_balls = [];
+      Array.prototype.forEach.call(balls, function (b) {
+        if (!b.hasOwnProperty("type")) {
+          new_balls.push(b);
+        }
+      });
+      balls = new_balls.slice(0);
+    });
+    canvas.addEventListener("mousemove", function (e) {
+      var e = e || window.event;
+      mouse_ball.x = e.pageX;
+      mouse_ball.y = e.pageY;
+      // console.log(mouse_ball);
+    });
+  </script>
+   <script src="js/autoptimize_single_b933ff0b9b7bbb7e9d756e8b9f5fa18d.js"></script>
+   <script src="js/autoptimize_single_c3c27e0b5c5eee8253c6374334cd7dbf.js"></script>
+
+   <script src="js/autoptimize_single_f4a52082a90476909196816a2a8f4856.js"></script>
+   <script src="js/typeahead.bundle.min.js"></script>
+   <script src="js/bootstrap.min.js" crossorigin="anonymous"></script>
+   <script src="js/player.js"></script>
+   <script src="js/aos.js"></script>
+   <script
+     type="text/javascript"
+     charset="utf8"
+     src="js/jquery.dataTables.js"
+   ></script>
+   <script>
+    // You can also pass an optional settings object
+    // below listed default settings
+    AOS.init({
+      // Global settings:
+      disable: false, // accepts following values: 'phone', 'tablet', 'mobile', boolean, expression or function
+      startEvent: "DOMContentLoaded", // name of the event dispatched on the document, that AOS should initialize on
+      initClassName: "aos-init", // class applied after initialization
+      animatedClassName: "aos-animate", // class applied on animation
+      useClassNames: false, // if true, will add content of `data-aos` as classes on scroll
+      disableMutationObserver: false, // disables automatic mutations' detections (advanced)
+      debounceDelay: 50, // the delay on debounce used while resizing window (advanced)
+      throttleDelay: 99, // the delay on throttle used while scrolling the page (advanced)
+
+      // Settings that can be overridden on per-element basis, by `data-aos-*` attributes:
+      offset: 120, // offset (in px) from the original trigger point
+      delay: 0, // values from 0 to 3000, with step 50ms
+      duration: 600, // values from 0 to 3000, with step 50ms
+      easing: "ease-in-out", // default easing for AOS animations
+      once: true, // whether animation should happen only once - while scrolling down
+      mirror: false, // whether elements should animate out while scrolling past them
+      anchorPlacement: "top-bottom", // defines which position of the element regarding to window should trigger the animation
+    });
+  </script>
+  <script src="js/scroll-out.min.js"></script>
+  <script src="js/rellax.min.js"></script>
+  <script src="js/owl.carousel.min.js"></script>
+  <script>
+    var rellax = new Rellax(".rellax");
+    ScrollOut({});
+  </script>
+  <script
+    type="text/javascript"
+    src="js/eurolandtoolsintegrationobject.js"
+  ></script>
+  <script src="js/autoptimize_single_cc5c25870ec6b6ba6816e78a9e908a3a.js"></script>
+  <script>
+    (function (body) {
+      "use strict";
+      body.className = body.className.replace(/\btribe-no-js\b/, "tribe-js");
+    })(document.body);
+  </script>
+  <script>
+    var tribe_l10n_datatables = {
+      aria: {
+        sort_ascending: ": activate to sort column ascending",
+        sort_descending: ": activate to sort column descending",
+      },
+      length_menu: "Show _MENU_ entries",
+      empty_table: "No data available in table",
+      info: "Showing _START_ to _END_ of _TOTAL_ entries",
+      info_empty: "Showing 0 to 0 of 0 entries",
+      info_filtered: "(filtered from _MAX_ total entries)",
+      zero_records: "No matching records found",
+      search: "Search:",
+      all_selected_text: "All items on this page were selected. ",
+      select_all_link: "Select all pages",
+      clear_selection: "Clear Selection.",
+      pagination: { all: "All", next: "Next", previous: "Previous" },
+      select: {
+        rows: { 0: "", _: ": Selected %d rows", 1: ": Selected 1 row" },
+      },
+      datepicker: {
+        dayNames: [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ],
+        dayNamesShort: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+        dayNamesMin: ["S", "M", "T", "W", "T", "F", "S"],
+        monthNames: [
+          "January",
+          "February",
+          "March",
+          "April",
+          "May",
+          "June",
+          "July",
+          "August",
+          "September",
+          "October",
+          "November",
+          "December",
+        ],
+        monthNamesShort: [
+          "January",
+          "February",
+          "March",
+          "April",
+          "May",
+          "June",
+          "July",
+          "August",
+          "September",
+          "October",
+          "November",
+          "December",
+        ],
+        monthNamesMin: [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ],
+        nextText: "Next",
+        prevText: "Prev",
+        currentText: "Today",
+        closeText: "Done",
+        today: "Today",
+        clear: "Clear",
+      },
+    };
+  </script>
+   <script
+   type="text/javascript"
+   src="js/smush-lazy-load.min.js"
+   id="smush-lazy-load-js"
+ ></script>
+ <link
+ rel="stylesheet"
+ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+ integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA=="
+ crossorigin="anonymous"
+ referrerpolicy="no-referrer"
+/>
+<link rel="stylesheet" href="css/odb5zqm.css" />
+<link
+href="css/bootstrap.min.css"
+rel="stylesheet"
+crossorigin="anonymous"
+/>
+<link rel="stylesheet" href="css/aos.css" />
+<link rel="icon" href="./images/pic-8.jpg">
+<link rel="stylesheet" href="./css/style_2.css" />
+<link
+      rel="stylesheet"
+      id="wp-block-library-css"
+      href="css/style.min.css"
+      type="text/css"
+      media="all"
+    />
+    <link
+    rel="stylesheet"
+    id="cookie-law-info-css"
+    href="css/cookie-law-info-public.css"
+    type="text/css"
+    media="all"
+  />
+  <link
+    rel="stylesheet"
+    id="cookie-law-info-gdpr-css"
+    href="css/cookie-law-info-gdpr.css"
+    type="text/css"
+    media="all"
+  />
+  <link
+    rel="stylesheet"
+    id="search-filter-plugin-styles-css"
+    href="css/search-filter.min.css"
+    type="text/css"
+    media="all"
+  />
+  <link
+    rel="stylesheet"
+    id="style-css"
+    href="css/styles_1.css"
+    type="text/css"
+    media="all"
+  />
+  <script
+  type="text/javascript"
+  src="js/jquery.min.js"
+  id="jquery-core-js"
+></script>
+<script
+  type="text/javascript"
+  src="js/jquery-migrate.min.js"
+  id="jquery-migrate-js"
+></script>
+<link rel="stylesheet" href="css/owl.carousel.min.css" />
+<link rel="stylesheet" href="css/owl.theme.default.min.css" />
+<body>
+    <div class="d1">
+        <header
+          class="c-header default"
+          style="background-color: rgba(0, 0, 0, 0.735)"
+        >
+          <!-- Anas Has changed logo text -->
+          <div class="bg"></div>
+          <a
+            class="logo"
+            style="
+              font-size: 30px;
+              font-weight: 700;
+              color: white;
+              display: flex;
+              align-items: center;
+            "
+            href="#"
+          >
+            <!-- <svg
+            xmlns="http://www.w3.org/2000/svg"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            width="111.429"
+            height="39"
+            viewBox="0 0 111.429 39"
+          >
+            <image
+              id="nesf_lg"
+              width="111.429"
+              height="39"
+              xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAACMCAYAAABS3P+YAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0GlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNy4xLWMwMDAgNzkuYjBmOGJlOTAsIDIwMjEvMTIvMTUtMjE6MjU6MTUgICAgICAgICI+IDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyI+IDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiIHhtbG5zOnhtcD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLyIgeG1sbnM6ZGM9Imh0dHA6Ly9wdXJsLm9yZy9kYy9lbGVtZW50cy8xLjEvIiB4bWxuczpwaG90b3Nob3A9Imh0dHA6Ly9ucy5hZG9iZS5jb20vcGhvdG9zaG9wLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bXA6Q3JlYXRvclRvb2w9IkFkb2JlIFBob3Rvc2hvcCAyMy4yIChNYWNpbnRvc2gpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyMi0wNC0yMlQxMjo0MjozMCswMTowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjItMDQtMjJUMTI6NDI6NTgrMDE6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjItMDQtMjJUMTI6NDI6NTgrMDE6MDAiIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjQ4MmUxOTM1LTI0MGYtNDI3Ny05ZjU0LWYzNDRlYzg4MTAwNCIgeG1wTU06RG9jdW1lbnRJ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"
+            ></image>
+          </svg> -->
+            <!-- <img src="./images/vebbox icon.jpg" style="border-radius: 100%;" alt=""> -->
+            prophecytechs
+          </a>
+          <a class="header-social" href="#" target="_blank">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="39"
+              height="39"
+              viewBox="0 0 39 39"
+            >
+              <g
+                id="Group_2338"
+                data-name="Group 2338"
+                transform="translate(-1122 -38)"
+              >
+                <g
+                  id="Group_835"
+                  data-name="Group 835"
+                  transform="translate(1499.685 208.528)"
+                >
+                  <rect
+                    id="Rectangle_231"
+                    data-name="Rectangle 231"
+                    width="3.636"
+                    height="11.696"
+                    transform="translate(-366.395 -153.714)"
+                    fill="#fff"
+                  ></rect>
+  
+                  <path
+                    id="Path_141"
+                    data-name="Path 141"
+                    d="M-364.577-159.528a2.108,2.108,0,0,0-2.108,2.107,2.108,2.108,0,0,0,2.108,2.108,2.109,2.109,0,0,0,2.107-2.108A2.108,2.108,0,0,0-364.577-159.528Z"
+                    fill="#fff"
+                  ></path>
+                  <path
+                    id="Path_142"
+                    data-name="Path 142"
+                    d="M-334.557-130.64v11.7h3.632v-5.786c0-1.526.29-3,2.182-3,1.864,0,1.889,1.745,1.889,3.1v5.688h3.633v-6.415c0-3.149-.68-5.572-4.361-5.572a3.82,3.82,0,0,0-3.44,1.889h-.049v-1.6Z"
+                    transform="translate(-25.923 -23.074)"
+                    fill="#fff"
+                  ></path>
+                </g>
+                <g
+                  id="Ellipse_71"
+                  data-name="Ellipse 71"
+                  transform="translate(1122 38)"
+                  fill="none"
+                  stroke="#fff"
+                  stroke-width="1"
+                >
+                  <circle cx="19.5" cy="19.5" r="19.5" stroke="none"></circle>
+                  <circle cx="19.5" cy="19.5" r="19" fill="none"></circle>
+                </g>
+              </g>
+            </svg>
+          </a>
+          <span id="search-btn" class="header-search">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="22.731"
+              height="21.264"
+              viewBox="0 0 22.731 21.264"
+            >
+              <g
+                id="Group_4"
+                data-name="Group 4"
+                transform="translate(-1153.514 -39)"
+              >
+                <g
+                  id="Ellipse_1"
+                  data-name="Ellipse 1"
+                  transform="translate(1158.512 39)"
+                  fill="none"
+                  stroke="#fff"
+                  stroke-width="2"
+                >
+                  <circle cx="8.867" cy="8.867" r="8.867" stroke="none"></circle>
+                  <circle cx="8.867" cy="8.867" r="7.867" fill="none"></circle>
+                </g>
+                <path
+                  id="Path_5"
+                  data-name="Path 5"
+                  d="M14474.778,1.522l-7.765,5.785"
+                  transform="translate(-13312.902 52.155)"
+                  fill="none"
+                  stroke="#fff"
+                  stroke-width="2"
+                ></path>
+              </g>
+            </svg>
+          </span>
+          <form id="header-search-form" class="search-form" action="/">
+            <input
+              placeholder="Search..."
+              name="s"
+              class="sf-input-text"
+              type="text"
+              value=""
+              title=""
+            />
+          </form>
+        </header>
+      </div>
+      <div id="main-navigation">
+        <div class="circle theme-">
+          <div class="inner"></div>
+        </div>
+        <nav class="nav-main-navigation">
+          <ul id="main-menu" class="global-nav">
+            <li
+              id="menu-item-957"
+              class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-957"
+            >
+              <a href="#">Services</a>
+              <ul class="sub-menu">
+                <li
+                  id="menu-item-3856"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3856"
+                >
+                  <a href="#">Mobile Software Development</a>
+                </li>
+                <li id="menu-item-3844" class="#">
+                  <a href="#">Software Maintenance Program</a>
+                </li>
+                <li
+                  id="menu-item-4538"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-4538"
+                >
+                  <a href="#"> Custom Software Development</a>
+                </li>
+                <li
+                  id="menu-item-3849"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3849"
+                >
+                  <a href="#"> Software Product Development</a>
+                </li>
+                <li
+                  id="menu-item-3850"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3850"
+                >
+                  <a href="#"> Software Prototyping</a>
+                </li>
+              </ul>
+            </li>
+            <li
+              id="menu-item-1955"
+              class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1955"
+            >
+              <a href="#">Industries</a>
+              <ul class="sub-menu">
+                <li
+                  id="menu-item-3852"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3852"
+                >
+                  <a href="#">Finance</a>
+                </li>
+                <li
+                  id="menu-item-4569"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-4569"
+                >
+                  <a href="#"> Healthcare</a>
+                </li>
+                <li
+                  id="menu-item-4850"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-4850"
+                >
+                  <a href="#"> Mid-Sized Business</a>
+                </li>
+              </ul>
+            </li>
+            <li
+              id="menu-item-1954"
+              class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1954"
+            >
+              <a href="#">Staffing & Consulting</a>
+              <ul class="sub-menu">
+                <li
+                  id="menu-item-2013"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2013"
+                >
+                  <a href="#">Outsourcing Process</a>
+                </li>
+                <li
+                  id="menu-item-1984"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-1984"
+                >
+                  <a href="#"> Market Intelligence</a>
+                </li>
+                <li
+                  id="menu-item-1985"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-1984"
+                >
+                  <a href="#"> Executive Search</a>
+                </li>
+              </ul>
+            </li>
+            <li
+              id="menu-item-1783"
+              class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1783"
+            >
+              <a href="#">Insights </a>
+              <ul class="sub-menu">
+                <li
+                  id="menu-item-2012"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2012"
+                >
+                  <a href="#">About</a>
+                </li>
+                <li
+                  id="menu-item-2119"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2119"
+                >
+                  <a href="#"> Careers </a>
+                </li>
+                <li
+                  id="menu-item-2050"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2050"
+                >
+                  <a href="#"> Our Team </a>
+                </li>
+                <li
+                  id="menu-item-2118"
+                  class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2118"
+                >
+                  <a href="#">Our Blog </a>
+                </li>
+              </ul>
+            </li>
+            <li
+              id="menu-item-1692"
+              class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1692"
+            >
+              <a href="#">H1B Lottery </a>
+            </li>
+            <li
+              id="menu-item-2019"
+              class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-2019"
+            >
+              <a href="#">Contact Us</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+  
+      <span id="btn-menu" class="btn-menu">
+        <span class="line"></span>
+      </span>
+
+<!-- Footer  -->
+
+
+
+
+      
+  
+</body>
+</html>
